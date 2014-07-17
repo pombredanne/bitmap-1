@@ -1,0 +1,6 @@
+This is a toy packed-bitmap data structure, for practice.
+
+The numpy boolean type is "numpy.bool8", i.e., as in C++, a char.
+We can do better, at the expense of a constant speed factor, by instead packing each boolean into a single bit.
+If you are not familiar with bitmaps, you need to know that on all modern machines, data can only be manipulated in chunks at a time: bytes (8 bits), words (32 or 64 bits, depending), or larger.
+To set and unset bits, we use shifts and masking, as so:
