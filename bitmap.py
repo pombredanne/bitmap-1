@@ -58,7 +58,7 @@ class Bitmap(object):
     >>> B[17] = 2
     TypeError
     >>> B[99] = True
-    IndexError    
+    IndexError
     """
     def __init__(self, size, dtype=np.int32):
         """
@@ -108,7 +108,7 @@ class Bitmap(object):
             
     def _addr(self, n):
         "map the bit address n to physical address (word, bit)"
-        if not (0 <= n < len(self)): raise ValueError(n)
+        if not (0 <= n < len(self)): raise IndexError(n)
         return (n >> self._addrbits, n & self._addrmask)
 
 
@@ -129,7 +129,7 @@ class Bitmap(object):
                 self[i] = vv
             return
 
-        if not isinstance(v, bool): raise TypeError
+        if not isinstance(v, bool): raise TypeError(type(v))
         
         a, b = self._addr(n)        
         
@@ -168,9 +168,37 @@ def pad_bin(x, pad=8):
     return x
 
 
+
+class NotReached(Exception):
+    def __init__(self):
+        Exception.__init__(self, "This line should not ever have been reached.")
+
+def test_doc_example():
+
+    B = Bitmap(66);
+    assert B[5] == False
+    B[7] = B[9] = True
+    assert B[6:12] ==  [False, True, False, True, False, False]
+    try:
+        B[17] = 2
+        raise NotReached
+    except TypeError:
+        pass #good
+        
+    try:
+        B[99] = True
+        raise NotReached
+    except IndexError:
+        pass #good
+    
+    try:
+        B[-9] = True
+        raise NotReached
+    except IndexError:
+        pass #good
+
 def test():
     import sys, random
-    
         
     B = Bitmap(int(sys.argv[1]) if len(sys.argv)>1 else 235)
     expected = []
@@ -197,7 +225,10 @@ def test():
     #print(V)
     fails = [i for i,(v,b) in enumerate(zip(V, bits)) if v != b]
     assert not fails
-
+    
+    
+    test_doc_example()
+    
     print("tests passed")
     
 
