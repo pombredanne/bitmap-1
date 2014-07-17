@@ -2,11 +2,14 @@
 
 kousu, 2014, 2-clause BSD
 
+[see class Bitmap for documentation]
+
 TODO:
  - [ ] support bitwise ops, so that all bits can be and, or'd, and xor'd en masse
  - [ ] support more reasonable slicing semantics: actually slice part way (this requires then having an optional .base object and a .offset, as ndarray does) 
  - [ ] support sums (__add__()) and appends (__iadd__() or append()); generally try to make this look as much like a list and not an array as possible.
  - [x] figure out how to read wordsize  whatever we feed into self._array; do the numpy dtypes have a "width" field or something?
+ - [ ] allow passing a list instead of a size (so Bitmap(5) and Bitmap([False, False, False, False, False]) are identical)
  - Tests:
    - [ ] what happens with different dtypes? what happens with the weird ones like strings? does it just fall over badly?
    - [ ] size = 0
@@ -15,15 +18,18 @@ TODO:
    - [ ] size = very large * wordsize
    - [ ] size = very large
    - [ ]
-
- - [ ] do profiling
+ - [ ] investigate better integration with np.array(). numpy is fairly flexible about what a, and has a lot of framework in place already. maybe we can define a new np.bool1 dtype?
+ - [ ] do profiling and performance testing
+   - [ ] does changing the dtype affect speed? how?
 """
-
-
 
 
 """
 Notes:
+
+If you are not familiar with bitmaps, you need to know that on all modern machines,
+ data can only be manipulated in chunks at a time: bytes (8 bits), words (32 or 64 bits, depending), or larger.
+So, to set and unset bits, we need to construct other numbers which we call (bit)masks using shifts and inversions.
 
 Endianness:
 Since bytes are *opaque* values (ie we never interact with their components--the bits--directly), endianness
@@ -33,17 +39,32 @@ Since bytes are *opaque* values (ie we never interact with their components--the
 
 import numpy as np
 
-
-class Bitmap(object): #TODO: subclass from np.array() ?
+class Bitmap(object):
     """
     A packed-boolean array.
     
     A standard C array 'bool B[n]' takes sizeof(bool)*n space, which is usually n bytes, with each byte only ever containing either 0b00000000 or 0b00000001
-    This datastructure saves 8 times the space
+    This datastructure saves 8 times the space by using each bit available as one storage location.
+     
+    This behaves like a list [or at least, it will, when it's finished], except that it is strongly-typed so that every value can only be a bool.
+    Initializes to all False.
     
+    >>> B = Bitmap(66);
+    >>> B[5]
+    False
+    >>> B[7] = B[9] = True
+    >>> B[6:12]
+    [False, True, False, True, False, False]
+    >>> B[17] = 2
+    TypeError
+    >>> B[99] = True
+    IndexError    
     """
     def __init__(self, size, dtype=np.int32):
-        
+        """
+        initialize
+        You can choose what
+        """
         self._size = size #store the original size because it's (wordsize-1)/wordsize times likely that we are not an even multiple and there will be some waste bits which we must make sure to make illegal to access (also, this is slightly faster for very little space)
         
         # figure out the wordsize based on dtype
@@ -52,7 +73,6 @@ class Bitmap(object): #TODO: subclass from np.array() ?
         # so we initialize one to 0
         wordsize = dtype(0).nbytes * 8 #8 bits in a byte
         #print("Wordsize:", wordsize) #DEBUG
-        #print(wordsize - 1)
         
 
         # precache the mask needed to get the within-word address out of the
@@ -91,38 +111,35 @@ class Bitmap(object): #TODO: subclass from np.array() ?
         if not (0 <= n < len(self)): raise ValueError(n)
         return (n >> self._addrbits, n & self._addrmask)
 
+
     def __getitem__(self, n):
         if isinstance(n, slice):
+            "hobo support for slicing"
             return [self[i] for i in range(len(self))[n]]
+            
         a, b = self._addr(n)
         #print("__getitem__; ", "[%d,%d] = " % (a,b), bin(self._array[a])) #DEBUG
         return bool(self._array[a] & (1 << b))
         
     def __setitem__(self, n, v):
+    
         if isinstance(n, slice):
+            "hobo support for slicing"
             for i,vv in zip(range(len(self))[n], v):
                 self[i] = vv
             return
 
         if not isinstance(v, bool): raise TypeError
         
-        a, b = self._addr(n)
+        a, b = self._addr(n)        
         
-        
-        # two expressions: | (~(1<<b) & wordmask), but this is awkward because ~ gives a negative number (because of two's complement) and if you want unsigned you must mask
-        # or, we can use the fact that xor'ing flips bits:
-        # oh snap
-        # dammit
-        # duh
-        # x & 1 = x
-        # x & 0 = 0
         if v: #turn on bit b
             # since
             # x | 1 = 1
             # x | 0 = x
             #  the bit we want on, we set to 1 in our mask, and we leave the rest as 0, so then they get passed through
             self._array[a] |= (1<<b)
-        else: #turn off
+        else: #turn off bit b
             # since
             # x & 1 = x
             # x & 0 = 0
