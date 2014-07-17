@@ -59,8 +59,10 @@ class Bitmap(object): #TODO: subclass from np.array() ?
         a, b = self._addr(n)
         print("__setitem__; ", "[%d,%d] = " % (a,b), bin(self._array[a]))
 
-        print("\t", bin(~(1 << b)))
-        self._array[a] |= ~(1 << b)
+        #print("\t", bin(~(1 << b)))
+        # two expressions: | (~(1<<b) & wordmask), but this is awkward because ~ gives a negative number (because of two's complement) and if you want unsigned you must mask
+        # or, we can use the fact that xor'ing flips bits:
+        self._array[a] ^= (1 << b)
 
     def __len__(self):
         return self._size        
@@ -70,10 +72,11 @@ def test():
     for i in range(len(B)):
         import IPython
         #IPython.embed()
-        print (i, B[i])
+        
         if i % 22 == 0:
             print("setting")
             B[i] = True
+        print (i, B[i])
 
 
 if __name__ == '__main__':
