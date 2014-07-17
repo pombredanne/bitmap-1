@@ -9,5 +9,9 @@ int main(void)
 int a = 7978;
 a = ~a;
 printf("%d\n", a);
+
+int ua = 7978;
+ua = ~ua;
+printf("%u\n", ua);
 return 0;
 }
